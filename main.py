@@ -15,7 +15,7 @@ d1 = today.strftime("%d-%m-%Y")
 d2=datetime.now()
 d2=d2.strftime("%m%d%Y_%H%M%S")
 
-folders=['Output','logs','Output/eda_output','Output/feature_transformations','Output/model_output','Output/attribution_output']
+folders=['Output','logs','Output/eda_output','Output/feature_transformations','Output/feature_transformed_data','Output/model_output','Output/attribution_output']
 
 for f in folders:
     if not os.path.isdir(f):
