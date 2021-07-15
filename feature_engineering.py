@@ -7,6 +7,8 @@ import logging
 from tigerml.core.reports import create_report
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from bokeh.models.formatters import DatetimeTickFormatter
+
 
 #imputes missing values
 def impute_missing_values(data):
@@ -35,7 +37,6 @@ def get_best_transformation(corr,dv):
     return corr.iloc[0,:]['index']
 
     
-
 #adtsock calculation method
 def get_adstock(col,halflife):
     ad=adstock_decay(halflife)
@@ -134,7 +135,7 @@ def s_lags_analysis(data,feature_config,dv,global_config):
     logging.info('Leaving stocking lags analysis function')
     return data,output_df
 
-#creates timeseries plots for all the transformed variables
+
 def tranformations_bivaraite_plots(data,feature_config,global_config):
     d2=datetime.now()
     d2=d2.strftime("%m%d%Y_%H%M%S")
@@ -152,7 +153,7 @@ def tranformations_bivaraite_plots(data,feature_config,global_config):
     report_dict={'Transformations Bivariate Plots':{}}
     for c in cols:
         t_df=pd.DataFrame()
-        t_df[global_config['time_column']]=data[global_config['time_column']]
+        t_df[global_config['time_column']]=data[global_config['time_column']].astype('datetime64[ns]')
         t_df[c]=data[c]
         t_df[global_config['dv']]=data[global_config['dv']]
         fd_keys=feature_dict[c].keys()
@@ -166,23 +167,18 @@ def tranformations_bivaraite_plots(data,feature_config,global_config):
                 for s in sls:
                     t_df[f'stocking_lag_{s}']=stocking_lag(data[c],s)
         ycols=[x for x in t_df.columns.tolist() if x!=global_config['time_column']]
-        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        #fig = make_subplots(specs=[[{"secondary_y": True}]])
         tc=global_config['time_column']
         dv=global_config['dv']
-        for yc in ycols:
-            if yc==dv:
-                fig.add_trace(
-                go.Scatter(x=t_df[tc],y=t_df[yc], name=yc),secondary_y=True)
-            else:
-                fig.add_trace(
-                go.Scatter(x=t_df[tc],y=t_df[yc], name=yc),secondary_y=False)
-        fig.update_layout(height=500, width=900,legend=dict(yanchor="top",y=0.99,xanchor="left",x=0.01))
-        #plot=t_df.hvplot.line(x=global_config['time_column'], y=ycols, legend='top', height=500, width=1000)
+        t_df=t_df.set_index(tc)
+        plot=t_df.hvplot.line(x=tc, y=ycols, legend='top', height=600, width=1000, by=['index.year','index.month']).opts(legend_position='top',xrotation=90,xformatter = DatetimeTickFormatter(months = '%b %Y'))
+
         cor=t_df.corr().reset_index()
         cor=cor.loc[cor['index']!=global_config['dv'],['index',global_config['dv']]]
         cor.columns=['tranformation','correlation']
         cor=cor.reset_index(drop=True)
-        report_dict['Transformations Bivariate Plots'][c]={'plot':fig,'correlation':cor}
+        report_dict['Transformations Bivariate Plots'][c]={'plot':plot,'correlation':cor}
+        print(report_dict)
     create_report(report_dict, name=f'tranformation_bivariate_plots_{global_config["run_name"]}_{d2}', path='Output/feature_transformations/', format='.html', split_sheets=True, tiger_template=False)
     
     

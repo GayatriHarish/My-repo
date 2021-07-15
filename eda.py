@@ -14,13 +14,16 @@ import holoviews as hv
 hv.extension('bokeh')
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from bokeh.models.formatters import DatetimeTickFormatter
 
 warnings.filterwarnings("ignore")
+
 #gets max date for certain column
 def max_date(x,time_column,data):
     d=data.loc[:,['date_sunday',x]]
     d=d.dropna()
     return d['date_sunday'].max()
+
 #gets min date for certain column
 def min_date(x,time_column,data):
     d=data.loc[:,['date_sunday',x]]
@@ -122,7 +125,7 @@ def correlation_analysis(data,global_config):
     writer.close()
     logging.info('coming out of correlation analysis function')
 
-#eda report using tigerml
+#prepared eda report using tigerml
 def eda_report_generation(data,global_config):
     d1=datetime.now()
     d1=d1.strftime("%m%d%Y_%H%M%S")
@@ -160,33 +163,39 @@ def add_trend_column(data):
     data['trend']=data.index+1
     return data
 
-# creates bivariate plots
+
+
+def apply_formatter(plot, element):
+    p = plot.state
+    # create secondary range and axis
+    p.extra_y_ranges = {"twiny": Range1d(start=200000, end=1000000)}
+    p.add_layout(LinearAxis(y_range_name="twiny"), 'left')
+    # set glyph y_range_name to the one we've just created
+    glyph = p.select(dict(type=GlyphRenderer))[0]
+    glyph.y_range_name = 'twiny'
+
+
 def bivariate_plots(data,global_config):
     d1=datetime.now()
     d1=d1.strftime("%m%d%Y_%H%M%S")
     numeric_cols= data.select_dtypes([np.number]).columns.tolist()
     dv=global_config['dv']
     tc=global_config['time_column']
-    data[tc]=data[tc].astype(str)
+    data[tc]=data[tc].astype('datetime64[ns]')
     numeric_cols=[ x for x in numeric_cols if x not in [tc,dv]]
     plot_dict={'Bivariate Plots':{}}
     for i in numeric_cols:
-        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        plot=data.hvplot.line(x=tc, y=[i,dv], legend='top', height=500, width=950, by=['index.year','index.month'])
         data_f=data.loc[:,[tc,i,dv]]
-        fig.add_trace(
-            go.Scatter(x=data_f[tc],y=data_f[i], name=i),secondary_y=False)
-        fig.add_trace(
-            go.Scatter(x=data_f[tc],y=data_f[dv], name=dv),secondary_y=True)
-        fig.update_layout(height=500, width=950,legend=dict(yanchor="top",y=0.99,xanchor="left",x=0.01))
+        data_f=data_f.set_index(tc)
+        a=data_f[i].hvplot(yaxis='right',ylim=(0,data_f[i].max()))
+        b=data_f[dv].hvplot(yaxis='left', ylim=(0,data_f[dv].max())).opts(hooks=[apply_formatter])
+        plot=a*b
+        plot=plot.opts(legend_position='top_left',xrotation=90,width=950,height=500,framewise=True, xticks=10, yticks=10,xformatter = DatetimeTickFormatter(months = '%b %Y'))
         plot_dict['Bivariate Plots'][i]={}
-        plot_dict['Bivariate Plots'][i]['plot']=fig
-    create_report(plot_dict, name=f'bivariate_plots_{global_config["run_name"]}_{d1}', path='Output/eda_output/', format='.html', split_sheets=True, tiger_template=False)
-    
-
-
-
-
-
+        plot_dict['Bivariate Plots'][i]['plot']=plot
+    create_report(plot_dict, name=f'eda_bivariate_plots_{global_config["run_name"]}_{d1}', path='Output/eda_output/', format='.html', split_sheets=True, tiger_template=False)
+   
 
 #function which calls all above functions
 def data_analysis(data,global_config):
